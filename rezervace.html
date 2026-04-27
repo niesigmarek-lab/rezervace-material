@@ -310,17 +310,27 @@
 </div>
 
 <script>
-// ============================================================
-// KONFIGURACE – sem vložte URL vašeho Apps Script!
-// ============================================================
-const API_URL = "https://script.google.com/macros/s/AKfycbw6CtRwiCtg6KbEXTuNzeuJexpEKkbjXmxR0MOxweV-TAIV0y4usjlAUOJmwaf_lkwl/exec";
-// Příklad: "https://script.google.com/macros/s/AKfycby.../exec"
-
-// ============================================================
+const API_URL = "https://script.google.com/macros/s/AKfycbxwRaMd1cQrSJl6F9TmvhmNBvvNCr9e3m86gD5gv4xzEyxzz9JSdhkEDXzlaOEda3uC/exec";
 
 let vsechenMaterial = [];
 let vsechnyRezervace = [];
 let vybranáPolozka = null;
+
+// ---- JSONP helper ----
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = "cb_" + Math.random().toString(36).slice(2);
+    const script = document.createElement("script");
+    window[cbName] = (data) => {
+      delete window[cbName];
+      document.body.removeChild(script);
+      resolve(data);
+    };
+    script.onerror = () => { delete window[cbName]; document.body.removeChild(script); reject(new Error("JSONP chyba")); };
+    script.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cbName;
+    document.body.appendChild(script);
+  });
+}
 
 // ---- INICIALIZACE ----
 async function init() {
@@ -329,8 +339,7 @@ async function init() {
 
 async function nactiMaterial() {
   try {
-    const r = await fetch(API_URL + "?akce=getMaterial");
-    const data = await r.json();
+    const data = await jsonp(API_URL + "?akce=getMaterial");
     vsechenMaterial = data.material || [];
     zobrazMaterial();
     sestavFiltry();
@@ -342,8 +351,7 @@ async function nactiMaterial() {
 
 async function nactiRezervace() {
   try {
-    const r = await fetch(API_URL + "?akce=getRezervace");
-    const data = await r.json();
+    const data = await jsonp(API_URL + "?akce=getRezervace");
     vsechnyRezervace = data.rezervace || [];
     zobrazRezervace();
   } catch(e) {}
@@ -442,8 +450,7 @@ async function zkontrolujDostupnost() {
   const el = document.getElementById("dostupnost-zprava");
   el.textContent = "Kontroluji dostupnost...";
 
-  const r = await fetch(`${API_URL}?akce=checkDostupnost&inv=${encodeURIComponent(vybranáPolozka.inv)}&datumOd=${od}&datumDo=${do_}`);
-  const data = await r.json();
+  const data = await jsonp(`${API_URL}?akce=checkDostupnost&inv=${encodeURIComponent(vybranáPolozka.inv)}&datumOd=${od}&datumDo=${do_}`);
 
   if (data.dostupny) {
     el.style.color = "var(--barva-uspech)";
@@ -477,17 +484,8 @@ async function odeslat() {
   zpravaEl.textContent = "";
 
   try {
-    const r = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        akce: "vytvorRezervaci",
-        inv: vybranáPolozka.inv,
-        nazev: vybranáPolozka.nazev,
-        pujcujici, prijemce,
-        datumOd: od, datumDo: do_
-      })
-    });
-    const data = await r.json();
+    const params = `akce=vytvorRezervaci&inv=${encodeURIComponent(vybranáPolozka.inv)}&nazev=${encodeURIComponent(vybranáPolozka.nazev)}&pujcujici=${encodeURIComponent(pujcujici)}&prijemce=${encodeURIComponent(prijemce)}&datumOd=${od}&datumDo=${do_}`;
+    const data = await jsonp(API_URL + "?" + params);
 
     if (data.uspech) {
       zpravaEl.className = "zprava uspech";
@@ -544,11 +542,7 @@ async function zrusitRezervaci(id, btn) {
   btn.textContent = "Ruším...";
 
   try {
-    const r = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({ akce: "zrusRezervaci", id })
-    });
-    const data = await r.json();
+    const data = await jsonp(API_URL + "?akce=zrusRezervaci&id=" + encodeURIComponent(id));
     if (data.uspech) {
       await nactiRezervace();
       zobrazRezervace();
