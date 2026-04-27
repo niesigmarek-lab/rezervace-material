@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rezervace materiálu – Flotila Liberec</title>
+<style>
+  :root {
+    --barva-hlavni: #2d3b8e;
+    --barva-akcent: #2d3b8e;
+    --barva-akcent-hover: #1e2a6e;
+    --barva-text: #1a1a2e;
+    --barva-text-sedy: #4a5280;
+    --barva-pozadi: #dce8f5;
+    --barva-karta: #fff;
+    --barva-ohraniceni: #b8cfe8;
+    --barva-uspech: #1e8449;
+    --barva-chyba: #c0392b;
+    --barva-varovani: #d68910;
+    --font: 'Segoe UI', Arial, sans-serif;
+    --polomer: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--barva-pozadi);
+    color: var(--barva-text);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .rezervace-app { max-width: 1000px; margin: 0 auto; padding: 2rem 1rem; }
+
+  h1 {
+    font-size: 1.8rem;
+    color: var(--barva-hlavni);
+    margin-bottom: 0.3rem;
+    font-weight: 700;
+  }
+  .podnadpis { color: var(--barva-text-sedy); margin-bottom: 1.5rem; font-size: 0.95rem; }
+
+  /* ---- ZÁLOŽKY ---- */
+  .zalozky { display: flex; gap: 0; border-bottom: 2px solid var(--barva-ohraniceni); margin-bottom: 1.5rem; }
+  .zalozka {
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 0.95rem;
+    color: var(--barva-text-sedy);
+    font-family: var(--font);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    font-weight: 500;
+    transition: color 0.15s;
+  }
+  .zalozka:hover { color: var(--barva-akcent); }
+  .zalozka.aktivni { color: var(--barva-hlavni); border-bottom-color: var(--barva-hlavni); }
+
+  /* ---- KATEGORIE FILTRY ---- */
+  .filtry { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.2rem; }
+  .filtr-btn {
+    padding: 5px 14px;
+    border: 1.5px solid var(--barva-ohraniceni);
+    border-radius: 20px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--barva-text-sedy);
+    font-family: var(--font);
+    transition: all 0.15s;
+  }
+  .filtr-btn:hover, .filtr-btn.aktivni {
+    background: var(--barva-hlavni);
+    color: #fff;
+    border-color: var(--barva-hlavni);
+  }
+
+  /* ---- MŘÍŽKA MATERIÁLU ---- */
+  .material-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  .material-karta {
+    background: var(--barva-karta);
+    border: 1.5px solid var(--barva-ohraniceni);
+    border-radius: var(--polomer);
+    padding: 1rem;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    cursor: pointer;
+    position: relative;
+  }
+  .material-karta:hover { box-shadow: 0 4px 16px rgba(26,82,118,0.12); border-color: var(--barva-akcent); }
+  .material-karta.nedostupna { opacity: 0.55; cursor: default; }
+  .material-karta.nedostupna:hover { box-shadow: none; border-color: var(--barva-ohraniceni); }
+
+  .karta-hlavicka { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .karta-nazev { font-weight: 600; font-size: 1rem; color: var(--barva-hlavni); flex: 1; }
+  .karta-inv { font-size: 0.75rem; color: var(--barva-text-sedy); font-family: monospace; white-space: nowrap; }
+
+  .karta-meta { font-size: 0.82rem; color: var(--barva-text-sedy); margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .meta-tag {
+    background: #eaf2f8;
+    color: var(--barva-hlavni);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+  }
+
+  .karta-poznamka { font-size: 0.83rem; color: var(--barva-text-sedy); margin-top: 4px; }
+  .karta-poznamka strong { color: var(--barva-text); }
+
+  .dostupnost-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  .dostupna { background: #d5f5e3; color: var(--barva-uspech); }
+  .nedostupna-badge { background: #fde8e8; color: var(--barva-chyba); }
+
+  .popis-tooltip {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--barva-hlavni);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: var(--polomer);
+    font-size: 0.83rem;
+    z-index: 100;
+    margin-top: 4px;
+    display: none;
+    line-height: 1.5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .material-karta:hover .popis-tooltip { display: block; }
+  .info-ikona { font-size: 0.8rem; color: var(--barva-akcent); cursor: help; flex-shrink: 0; margin-top: 2px; }
+
+  /* ---- FORMULÁŘ ---- */
+  .formular-sekce { display: none; }
+  .formular-sekce.aktivni { display: block; }
+
+  .formular-karta {
+    background: var(--barva-karta);
+    border: 1.5px solid var(--barva-ohraniceni);
+    border-radius: var(--polomer);
+    padding: 1.5rem;
+    max-width: 560px;
+  }
+
+  .formular-karta h2 { font-size: 1.2rem; color: var(--barva-hlavni); margin-bottom: 1.2rem; }
+
+  .vybrana-polozka {
+    background: #eaf2f8;
+    border: 1.5px solid var(--barva-akcent);
+    border-radius: var(--polomer);
+    padding: 10px 14px;
+    margin-bottom: 1.2rem;
+    font-size: 0.9rem;
+  }
+  .vybrana-polozka strong { color: var(--barva-hlavni); display: block; font-size: 1rem; }
+
+  .pole { margin-bottom: 1rem; }
+  .pole label { display: block; font-size: 0.85rem; color: var(--barva-text-sedy); margin-bottom: 4px; font-weight: 500; }
+  .pole input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1.5px solid var(--barva-ohraniceni);
+    border-radius: var(--polomer);
+    font-size: 0.95rem;
+    font-family: var(--font);
+    color: var(--barva-text);
+    background: #fff;
+    transition: border-color 0.15s;
+  }
+  .pole input:focus { outline: none; border-color: var(--barva-akcent); }
+
+  .pole-rada { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .btn {
+    padding: 9px 20px;
+    border: none;
+    border-radius: var(--polomer);
+    font-size: 0.95rem;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+  .btn-hlavni { background: var(--barva-akcent); color: #fff; }
+  .btn-hlavni:hover { background: var(--barva-akcent-hover); }
+  .btn-sekundarni { background: #eaf2f8; color: var(--barva-hlavni); }
+  .btn-sekundarni:hover { background: #d5e8f0; }
+  .btn-nebezpecny { background: #fde8e8; color: var(--barva-chyba); }
+  .btn-nebezpecny:hover { background: #f9c0c0; }
+
+  .btn-rada { display: flex; gap: 10px; margin-top: 1.2rem; flex-wrap: wrap; }
+
+  /* ---- REZERVACE PŘEHLED ---- */
+  .rezervace-sekce { display: none; }
+  .rezervace-sekce.aktivni { display: block; }
+
+  .rezervace-karta {
+    background: var(--barva-karta);
+    border: 1.5px solid var(--barva-ohraniceni);
+    border-radius: var(--polomer);
+    padding: 1rem 1.2rem;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .rezervace-info { flex: 1; }
+  .rezervace-nazev { font-weight: 600; color: var(--barva-hlavni); }
+  .rezervace-detail { font-size: 0.85rem; color: var(--barva-text-sedy); margin-top: 2px; }
+  .rezervace-datum { font-size: 0.85rem; color: var(--barva-text-sedy); text-align: right; white-space: nowrap; }
+
+  /* ---- ZPRÁVY ---- */
+  .zprava {
+    padding: 10px 14px;
+    border-radius: var(--polomer);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    display: none;
+  }
+  .zprava.uspech { background: #d5f5e3; color: var(--barva-uspech); display: block; }
+  .zprava.chyba { background: #fde8e8; color: var(--barva-chyba); display: block; }
+
+  /* ---- LOADING ---- */
+  .loading { text-align: center; padding: 2rem; color: var(--barva-text-sedy); }
+
+  /* ---- MOBIL ---- */
+  @media (max-width: 480px) {
+    .pole-rada { grid-template-columns: 1fr; }
+    .material-grid { grid-template-columns: 1fr; }
+    .btn-rada { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="rezervace-app">
+  <h1>⚓ Rezervace materiálu</h1>
+  <p class="podnadpis">7. přístav vodních skautů Flotila Liberec</p>
+
+  <div class="zalozky">
+    <button class="zalozka aktivni" onclick="prepniZalozku('material')">Materiál</button>
+    <button class="zalozka" onclick="prepniZalozku('rezervace')">Přehled rezervací</button>
+  </div>
+
+  <!-- ===== ZÁLOŽKA: MATERIÁL ===== -->
+  <div id="sekce-material" class="formular-sekce aktivni">
+
+    <!-- Formulář rezervace (skrytý dokud nevybere položku) -->
+    <div id="formular-blok" style="display:none; margin-bottom: 1.5rem;">
+      <div class="formular-karta">
+        <h2>Nová rezervace</h2>
+        <div class="vybrana-polozka">
+          <strong id="f-nazev">—</strong>
+          <span id="f-inv" style="font-size:0.8rem; color: var(--barva-text-sedy);"></span>
+        </div>
+        <div id="zprava-formular" class="zprava"></div>
+        <div class="pole-rada">
+          <div class="pole">
+            <label>Datum od</label>
+            <input type="date" id="f-datum-od" onchange="zkontrolujDostupnost()">
+          </div>
+          <div class="pole">
+            <label>Datum do</label>
+            <input type="date" id="f-datum-do" onchange="zkontrolujDostupnost()">
+          </div>
+        </div>
+        <div id="dostupnost-zprava" style="margin-bottom:10px; font-size:0.85rem;"></div>
+        <div class="pole">
+          <label>Jméno půjčujícího (kdo nese odpovědnost)</label>
+          <input type="text" id="f-pujcujici" placeholder="Jméno Příjmení">
+        </div>
+        <div class="pole">
+          <label>Jméno příjemce (komu se půjčuje)</label>
+          <input type="text" id="f-prijemce" placeholder="Jméno Příjmení">
+        </div>
+        <div class="btn-rada">
+          <button class="btn btn-hlavni" onclick="odeslat()">Rezervovat</button>
+          <button class="btn btn-sekundarni" onclick="zavritFormular()">Zrušit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtry kategorií -->
+    <div class="filtry" id="filtry-kontejner">
+      <button class="filtr-btn aktivni" onclick="filtrovat('vse', this)">Vše</button>
+    </div>
+
+    <div id="material-kontejner" class="loading">Načítám materiál...</div>
+  </div>
+
+  <!-- ===== ZÁLOŽKA: REZERVACE ===== -->
+  <div id="sekce-rezervace" class="rezervace-sekce">
+    <div id="rezervace-kontejner" class="loading">Načítám rezervace...</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// KONFIGURACE – sem vložte URL vašeho Apps Script!
+// ============================================================
+const API_URL = "https://script.google.com/macros/s/AKfycbw6CtRwiCtg6KbEXTuNzeuJexpEKkbjXmxR0MOxweV-TAIV0y4usjlAUOJmwaf_lkwl/exec";
+// Příklad: "https://script.google.com/macros/s/AKfycby.../exec"
+
+// ============================================================
+
+let vsechenMaterial = [];
+let vsechnyRezervace = [];
+let vybranáPolozka = null;
+
+// ---- INICIALIZACE ----
+async function init() {
+  await Promise.all([nactiMaterial(), nactiRezervace()]);
+}
+
+async function nactiMaterial() {
+  try {
+    const r = await fetch(API_URL + "?akce=getMaterial");
+    const data = await r.json();
+    vsechenMaterial = data.material || [];
+    zobrazMaterial();
+    sestavFiltry();
+  } catch(e) {
+    document.getElementById("material-kontejner").innerHTML =
+      '<p style="color:var(--barva-chyba)">Chyba načítání materiálu. Zkontrolujte URL Apps Scriptu.</p>';
+  }
+}
+
+async function nactiRezervace() {
+  try {
+    const r = await fetch(API_URL + "?akce=getRezervace");
+    const data = await r.json();
+    vsechnyRezervace = data.rezervace || [];
+    zobrazRezervace();
+  } catch(e) {}
+}
+
+// ---- ZOBRAZENÍ MATERIÁLU ----
+let aktivniFiltr = "vse";
+
+function zobrazMaterial(filtr) {
+  filtr = filtr || aktivniFiltr;
+  const kontejner = document.getElementById("material-kontejner");
+  const seznam = filtr === "vse" ? vsechenMaterial : vsechenMaterial.filter(m => m.kategorie === filtr);
+
+  if (!seznam.length) { kontejner.innerHTML = '<p>Žádný materiál.</p>'; return; }
+
+  kontejner.className = "material-grid";
+  kontejner.innerHTML = seznam.map(m => {
+    const rezervovano = jeRezernovano(m.inv);
+    return `
+      <div class="material-karta ${rezervovano ? 'nedostupna' : ''}"
+           onclick="${rezervovano ? '' : `vybratPolozku('${escHtml(m.inv)}')`}"
+           title="${rezervovano ? 'Materiál je aktuálně rezervován' : 'Klikněte pro rezervaci'}">
+        <div class="karta-hlavicka">
+          <span class="karta-nazev">${escHtml(m.nazev)}</span>
+          ${m.popis ? `<span class="info-ikona" title="${escHtml(m.popis)}">ℹ</span>` : ''}
+        </div>
+        <span class="karta-inv">${escHtml(m.inv)}</span>
+        <div class="karta-meta">
+          <span class="meta-tag">${escHtml(m.kategorie)}</span>
+          ${m.umisteni ? `<span class="meta-tag">📍 ${escHtml(m.umisteni)}</span>` : ''}
+          ${m.cena ? `<span class="meta-tag">💰 ${escHtml(String(m.cena))} Kč</span>` : ''}
+        </div>
+        ${m.poznamka ? `<div class="karta-poznamka">${m.poznamka}</div>` : ''}
+        ${m.popis ? `<div class="popis-tooltip">${escHtml(m.popis)}</div>` : ''}
+        <span class="dostupnost-badge ${rezervovano ? 'nedostupna-badge' : 'dostupna'}">
+          ${rezervovano ? 'Rezervováno' : 'Dostupné'}
+        </span>
+      </div>`;
+  }).join('');
+}
+
+function jeRezernovano(inv) {
+  const dnes = new Date().toISOString().slice(0, 10);
+  return vsechnyRezervace.some(r => r.inv === inv && r.datumOd <= dnes && r.datumDo >= dnes && r.stav === "aktivní");
+}
+
+function sestavFiltry() {
+  const kategorie = [...new Set(vsechenMaterial.map(m => m.kategorie))];
+  const kontejner = document.getElementById("filtry-kontejner");
+  const extra = kategorie.map(k =>
+    `<button class="filtr-btn" onclick="filtrovat('${escHtml(k)}', this)">${escHtml(k)}</button>`
+  ).join('');
+  kontejner.innerHTML = `<button class="filtr-btn aktivni" onclick="filtrovat('vse', this)">Vše</button>` + extra;
+}
+
+function filtrovat(hodnota, btn) {
+  aktivniFiltr = hodnota;
+  document.querySelectorAll(".filtr-btn").forEach(b => b.classList.remove("aktivni"));
+  btn.classList.add("aktivni");
+  zobrazMaterial(hodnota);
+}
+
+// ---- FORMULÁŘ ----
+function vybratPolozku(inv) {
+  vybranáPolozka = vsechenMaterial.find(m => m.inv === inv);
+  if (!vybranáPolozka) return;
+
+  document.getElementById("f-nazev").textContent = vybranáPolozka.nazev;
+  document.getElementById("f-inv").textContent = "Inv. č.: " + vybranáPolozka.inv;
+  document.getElementById("zprava-formular").className = "zprava";
+  document.getElementById("dostupnost-zprava").textContent = "";
+  document.getElementById("f-pujcujici").value = "";
+  document.getElementById("f-prijemce").value = "";
+
+  // Výchozí datum: dnes a +7 dní
+  const dnes = new Date();
+  const plus7 = new Date(dnes); plus7.setDate(plus7.getDate() + 7);
+  document.getElementById("f-datum-od").value = formatDatum(dnes);
+  document.getElementById("f-datum-do").value = formatDatum(plus7);
+
+  document.getElementById("formular-blok").style.display = "block";
+  document.getElementById("formular-blok").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function zavritFormular() {
+  document.getElementById("formular-blok").style.display = "none";
+  vybranáPolozka = null;
+}
+
+async function zkontrolujDostupnost() {
+  if (!vybranáPolozka) return;
+  const od = document.getElementById("f-datum-od").value;
+  const do_ = document.getElementById("f-datum-do").value;
+  if (!od || !do_) return;
+
+  const el = document.getElementById("dostupnost-zprava");
+  el.textContent = "Kontroluji dostupnost...";
+
+  const r = await fetch(`${API_URL}?akce=checkDostupnost&inv=${encodeURIComponent(vybranáPolozka.inv)}&datumOd=${od}&datumDo=${do_}`);
+  const data = await r.json();
+
+  if (data.dostupny) {
+    el.style.color = "var(--barva-uspech)";
+    el.textContent = "✓ Materiál je v tomto termínu dostupný.";
+  } else {
+    el.style.color = "var(--barva-chyba)";
+    const k = data.konflikt;
+    el.textContent = `✗ Obsazeno (${k.pujcujici}, ${k.datumOd} – ${k.datumDo})`;
+  }
+}
+
+async function odeslat() {
+  const od = document.getElementById("f-datum-od").value;
+  const do_ = document.getElementById("f-datum-do").value;
+  const pujcujici = document.getElementById("f-pujcujici").value.trim();
+  const prijemce = document.getElementById("f-prijemce").value.trim();
+  const zpravaEl = document.getElementById("zprava-formular");
+
+  if (!od || !do_ || !pujcujici || !prijemce) {
+    zpravaEl.className = "zprava chyba";
+    zpravaEl.textContent = "Vyplňte prosím všechna pole.";
+    return;
+  }
+  if (od > do_) {
+    zpravaEl.className = "zprava chyba";
+    zpravaEl.textContent = "Datum od musí být před datem do.";
+    return;
+  }
+
+  zpravaEl.className = "zprava";
+  zpravaEl.textContent = "";
+
+  try {
+    const r = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        akce: "vytvorRezervaci",
+        inv: vybranáPolozka.inv,
+        nazev: vybranáPolozka.nazev,
+        pujcujici, prijemce,
+        datumOd: od, datumDo: do_
+      })
+    });
+    const data = await r.json();
+
+    if (data.uspech) {
+      zpravaEl.className = "zprava uspech";
+      zpravaEl.textContent = `✓ Rezervace vytvořena (ID: ${data.id})`;
+      await nactiRezervace();
+      zobrazMaterial();
+      setTimeout(zavritFormular, 3000);
+    } else {
+      zpravaEl.className = "zprava chyba";
+      zpravaEl.textContent = data.chyba || "Chyba při vytváření rezervace.";
+    }
+  } catch(e) {
+    zpravaEl.className = "zprava chyba";
+    zpravaEl.textContent = "Chyba připojení k serveru.";
+  }
+}
+
+// ---- PŘEHLED REZERVACÍ ----
+function zobrazRezervace() {
+  const kontejner = document.getElementById("rezervace-kontejner");
+  const aktivni = vsechnyRezervace.filter(r => r.stav === "aktivní");
+
+  if (!aktivni.length) {
+    kontejner.className = "";
+    kontejner.innerHTML = '<p style="color:var(--barva-text-sedy)">Žádné aktivní rezervace.</p>';
+    return;
+  }
+
+  kontejner.className = "";
+  kontejner.innerHTML = aktivni
+    .sort((a, b) => a.datumOd.localeCompare(b.datumOd))
+    .map(r => `
+      <div class="rezervace-karta">
+        <div class="rezervace-info">
+          <div class="rezervace-nazev">${escHtml(r.nazev)}</div>
+          <div class="rezervace-detail">
+            Inv. č.: ${escHtml(r.inv)} &nbsp;|&nbsp;
+            Půjčuje: <strong>${escHtml(r.pujcujici)}</strong> &nbsp;→&nbsp;
+            Příjemce: <strong>${escHtml(r.prijemce)}</strong>
+          </div>
+        </div>
+        <div class="rezervace-datum">
+          📅 ${r.datumOd} – ${r.datumDo}
+          <br><button class="btn btn-nebezpecny" style="margin-top:6px; font-size:0.8rem; padding:4px 12px;"
+            onclick="zrusitRezervaci('${escHtml(r.id)}', this)">Zrušit</button>
+        </div>
+      </div>`
+    ).join('');
+}
+
+async function zrusitRezervaci(id, btn) {
+  if (!confirm("Opravdu zrušit tuto rezervaci?")) return;
+  btn.disabled = true;
+  btn.textContent = "Ruším...";
+
+  try {
+    const r = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ akce: "zrusRezervaci", id })
+    });
+    const data = await r.json();
+    if (data.uspech) {
+      await nactiRezervace();
+      zobrazRezervace();
+      zobrazMaterial();
+    } else {
+      alert("Chyba: " + data.chyba);
+      btn.disabled = false;
+      btn.textContent = "Zrušit";
+    }
+  } catch(e) {
+    alert("Chyba připojení.");
+    btn.disabled = false;
+    btn.textContent = "Zrušit";
+  }
+}
+
+// ---- ZÁLOŽKY ----
+function prepniZalozku(ktera) {
+  document.querySelectorAll(".zalozka").forEach(z => z.classList.remove("aktivni"));
+  document.querySelectorAll(".formular-sekce, .rezervace-sekce").forEach(s => s.classList.remove("aktivni"));
+  event.target.classList.add("aktivni");
+  if (ktera === "material") document.getElementById("sekce-material").classList.add("aktivni");
+  if (ktera === "rezervace") document.getElementById("sekce-rezervace").classList.add("aktivni");
+}
+
+// ---- HELPERS ----
+function escHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatDatum(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+// ---- START ----
+init();
+</script>
+</body>
+</html>
